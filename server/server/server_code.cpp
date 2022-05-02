@@ -1,16 +1,46 @@
+#include <iostream>
 #include <stdio.h>
 #include <winsock2.h>
 #include <conio.h>
-#include <iostream>
+#include <ws2tcpip.h>
+#include <windows.h>
+
 #pragma warning(disable:4996) 
 #pragma comment (lib, "Ws2_32.lib")
 #define SERVER_PORT 3817
 
 using namespace std;
 
+DWORD WINAPI stream(LPVOID lpParam) {
+	SOCKET Conn =*(SOCKET*)lpParam;
+
+	int bytes = 0;
+	char exit[20] = "exit";
+	char buf_in[20];
+	char s_word[5] = "stop";
+	char buf_out[34] = "Received";
+	while (1) {
+		bytes = recv(Conn, (char*)buf_in, sizeof(buf_in), 0);
+		cout << buf_in << endl;
+
+		if (bytes == SOCKET_ERROR) {
+			cout << "Didn't send";
+			break;
+		}
+
+		if (buf_in[0] == 's' && buf_in[1] == 't' && buf_in[2] == 'o' && buf_in[3] == 'p') {
+			send(Conn, (char*)s_word, sizeof(s_word), 0);
+			break;
+		}
+		send(Conn, (char*)buf_out, sizeof(buf_out), 0);
+	}
+	return 0;
+}
+
 int main() {
 	struct sockaddr_in SrvAddr; //adress struc for a server
 	struct sockaddr_in ConnAddr; //adress struc for a client
+	memset(&ConnAddr, 0, sizeof(ConnAddr));
 	SOCKET SrvSock, Conn;
 
 	WSADATA wsaData; //work with sockets in windows
@@ -33,31 +63,28 @@ int main() {
 
 	cout << "Server is working...\n";
 	int AddrLen = sizeof(ConnAddr);
-	char buf_in[20];
-	char exit[20] = "exit";
-	char buf_out[34] = "Received";
-	int bytes = 0;
-	bool stop = false;
-	char s_word[5] = "stop";
-	int size_code = sizeof(s_word);
-	int check = 0;
+	DWORD ThreadId;
+	HANDLE hThread;
 
-	//waiting for the client
-	Conn = accept(SrvSock, (struct sockaddr*)&ConnAddr, &AddrLen);
 	while (1) {
-		bytes = recv(Conn, (char*)buf_in, sizeof(buf_in), 0);
-		cout << buf_in << endl;
-		if (buf_in[0] == 's' && buf_in[1] == 't' && buf_in[2] == 'o' && buf_in[3] == 'p') {
-			send(Conn, (char*)s_word, sizeof(s_word), 0);
-			break;
-		}
-		send(Conn, (char*)buf_out, sizeof(buf_out), 0);
+		Conn = accept(SrvSock, (struct sockaddr*)&ConnAddr, &AddrLen); //waiting for the client
+		
+		hThread = CreateThread(
+			NULL,            
+			0,                
+			stream,        
+			&Conn,  
+			0,                
+			&ThreadId);        
+
+		if (hThread == NULL)  printf("CreateThread failed.");
+
 	}
+	CloseHandle(hThread);
+
 	shutdown(Conn, 2);
 	closesocket(Conn);
 
-	cout << endl << "Exit from server part of programme" << endl;
 	_getch();
 	return 0;
-
 }
